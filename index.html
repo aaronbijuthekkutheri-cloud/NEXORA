@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>NEXORA</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+
+<style>
+    :root {
+        --primary: #00f0ff;
+        --secondary: #bd00ff;
+        --accent: #ffe600;
+        --bg: #050011;
+        --neon-red: #ff073a; /* Deep Red Neon */
+        --explosion-color: #ffe600; /* Yellow/Amber for explosion */
+    }
+
+    body {
+        margin: 0;
+        background: var(--bg);
+        overflow: hidden;
+        font-family: 'Orbitron', sans-serif;
+        color: var(--primary);
+        user-select: none;
+        -webkit-user-select: none;
+        touch-action: manipulation;
+    }
+
+    /* Container to center game on large screens */
+    #game-container {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background: radial-gradient(circle at center, #1a0b2e 0%, #000000 100%);
+    }
+
+    canvas {
+        display: block;
+        box-shadow: 0 0 50px rgba(0, 240, 255, 0.15);
+        max-width: 100%;
+        max-height: 100%;
+    }
+
+    /* UI Layer */
+    #ui-layer {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 20px;
+    }
+
+    .hud-text {
+        font-size: clamp(16px, 3vw, 24px);
+        text-shadow: 0 0 10px var(--primary);
+        font-weight: 700;
+        letter-spacing: 2px;
+    }
+
+    #score-display {
+        position: absolute;
+        top: 10%;
+        width: 100%;
+        text-align: center;
+        font-size: clamp(40px, 8vw, 80px);
+        opacity: 0.3;
+        pointer-events: none;
+        z-index: 0;
+    }
+
+    /* Menu Overlay */
+    #overlay {
+        position: absolute;
+        inset: 0;
+        background: rgba(5, 0, 17, 0.75);
+        backdrop-filter: blur(8px);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        gap: 20px;
+        z-index: 10;
+        transition: opacity 0.3s;
+        pointer-events: auto;
+    }
+
+    /* CRASHED Text Styling and Animation - UPDATED */
+    #crashed-text {
+        font-size: clamp(40px, 10vw, 80px);
+        margin: 0;
+        text-transform: uppercase;
+        letter-spacing: 5px;
+        /* UPDATED: Matching the style of #confirmation-modal h2 */
+        color: var(--neon-red); 
+        background: none; /* Remove gradient fill */
+        -webkit-background-clip: unset; 
+        -webkit-text-fill-color: unset; 
+        text-shadow: 0 0 20px var(--neon-red);
+        animation: none; 
+        margin-bottom: -5px;
+    }
+
+    h1 {
+        font-size: clamp(24px, 5vw, 48px);
+        margin: 0;
+        background: linear-gradient(to bottom, #fff, var(--primary));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        text-shadow: 0 0 20px var(--primary);
+        text-transform: uppercase;
+        letter-spacing: 4px;
+        text-align: center;
+        margin-top: 5px;
+    }
+
+    .sub-text {
+        color: #fff;
+        font-size: 14px;
+        opacity: 0.8;
+        letter-spacing: 1px;
+        margin-bottom: 5px; 
+        margin-top: 10px;
+        text-align: center;
+    }
+    
+    .score-summary {
+        font-size: clamp(18px, 4vw, 28px);
+        font-weight: 700;
+        color: var(--primary);
+        text-shadow: 0 0 10px var(--primary);
+        letter-spacing: 1px;
+        margin-bottom: 25px; 
+        margin-top: 10px;
+    }
+
+    .btn {
+        background: transparent;
+        border: 2px solid var(--primary);
+        color: var(--primary);
+        padding: 15px 40px;
+        font-family: 'Orbitron', sans-serif;
+        font-size: 18px;
+        font-weight: bold;
+        cursor: pointer;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        transition: all 0.2s ease;
+        box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
+        clip-path: polygon(10% 0, 100% 0, 100% 70%, 90% 100%, 0 100%, 0 30%);
+        margin-top: 10px;
+    }
+
+    .btn:hover {
+        background: var(--primary);
+        color: #000;
+        box-shadow: 0 0 30px var(--primary);
+        transform: scale(1.05);
+    }
+    
+    #resetBtn {
+        border-color: var(--neon-red);
+        color: var(--neon-red);
+        box-shadow: 0 0 15px rgba(255, 7, 58, 0.2);
+        font-size: 14px;
+        padding: 10px 30px;
+    }
+
+    #resetBtn:hover {
+        background: var(--neon-red);
+        color: #fff;
+        box-shadow: 0 0 30px var(--neon-red);
+        transform: scale(1.05);
+    }
+
+    /* --- New Control Hint Styling (CRITICAL FIX: Ensure high Z-index) --- */
+    #pc-hint {
+        position: absolute;
+        bottom: 5vh;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: clamp(12px, 2vw, 16px);
+        color: rgba(255, 255, 255, 0.7); /* Slightly brighter */
+        letter-spacing: 1px;
+        opacity: 1; /* Always fully opaque when visible */
+        display: none; /* Hidden by default */
+        transition: opacity 0.5s ease;
+        pointer-events: none;
+        z-index: 11; /* Set higher than the overlay (z-index: 10) to be safe */
+        text-shadow: 0 0 5px rgba(255, 255, 255, 0.3);
+    }
+
+
+    /* --- Confirmation Modal Styling --- */
+    #confirmation-modal {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.9);
+        backdrop-filter: blur(10px);
+        display: none; 
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        gap: 30px;
+        z-index: 100;
+    }
+
+    #confirmation-modal h2 {
+        color: var(--neon-red);
+        font-size: clamp(24px, 6vw, 40px);
+        text-shadow: 0 0 15px var(--neon-red);
+        text-transform: uppercase;
+        letter-spacing: 3px;
+    }
+    
+    #confirmation-modal p {
+        color: #fff;
+        opacity: 0.8;
+        font-size: clamp(14px, 3vw, 18px);
+        text-align: center;
+        width: 80%;
+        max-width: 400px;
+    }
+    
+    .modal-buttons {
+        display: flex;
+        gap: 20px;
+    }
+    
+    #confirmResetBtn, #cancelResetBtn {
+        padding: 12px 25px;
+        font-size: 16px;
+        margin: 0;
+    }
+    
+    #confirmResetBtn {
+        border-color: var(--neon-red);
+        color: var(--neon-red);
+    }
+    
+    #confirmResetBtn:hover {
+        background: var(--neon-red);
+        color: #fff;
+    }
+    
+    #cancelResetBtn {
+        border-color: var(--primary);
+        color: var(--primary);
+    }
+    
+    #cancelResetBtn:hover {
+        background: var(--primary);
+        color: #000;
+    }
+
+</style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="game"></canvas>
+
+    <div id="score-display">0</div>
+
+    <div id="ui-layer">
+        <div class="hud-text" id="best-score">BEST: 0</div>
+    </div>
+
+    <div id="overlay">
+        <div id="crashed-text" style="display: none;">CRASHED</div> 
+        <h1>NEXORA</h1>
+        <div class="sub-text">AVOID THE CYBER COLUMNS</div>
+        <div class="score-summary" id="death-score-summary" style="display: none;"></div>
+        <button class="btn" id="startBtn">INITIATE</button>
+        <button class="btn" id="resetBtn">FULL DATA RESET</button>
+    </div>
+    
+    <div id="confirmation-modal">
+        <h2>CONFIRM RESET</h2>
+        <p>This action will permanently clear your BEST SCORE. Are you sure you wish to proceed?</p>
+        <div class="modal-buttons">
+            <button class="btn" id="confirmResetBtn">YES, CLEAR DATA</button>
+            <button class="btn" id="cancelResetBtn">NO, CANCEL</button>
+        </div>
+    </div>
+    
+    <div id="pc-hint">Controls: SPACEBAR</div>
+
+</div>
+
+<script>
+/** * NEXORA
+ * FIXED: Removed strict isDesktop check for hint visibility and increased Z-index.
+ * UPDATED: Renamed game title to NEXORA.
+ * UPDATED: Changed CRASHED text style to match CONFIRM RESET.
+ * FIXED: Adjusted pipeInterval and speed ramp for fairer horizontal spacing and medium difficulty.
+ */
+
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d", { alpha: false });
+
+/* --- CONFIG --- */
+const CONFIG = {
+    gravity: 0.15,      
+    jumpForce: -4.5,    
+    speedBase: 3.5,     
+    pipeGap: 190,       
+    // FIXED: Increased base interval from 180 to 200 for more horizontal room at start
+    pipeInterval: 200,  
+    colors: {
+        skyTop: "#050011",
+        skyBot: "#180036",
+        grid: "#bd00ff",
+        pipeBorder: "#00f0ff",
+        pipeFill: "#001a1c",
+        explosion: "#ffe600", // Yellow/Amber
+        secondaryExplosion: "#ff0055" // Red
+    },
+    CRASH_DURATION: 500 // ms for the explosion animation before showing the screen
+};
+
+/* --- STATE --- */
+let gameState = "START"; // Possible states: "START", "PLAYING", "CRASHING", "DEAD"
+let frames = 0;
+let score = 0;
+// Note: Local storage key remains 'utopix_high' for persistence across renames, but feel free to change it.
+let highScore = localStorage.getItem("utopix_high") || 0; 
+let gameSpeed = CONFIG.speedBase;
+let deathScreenDelay = false; 
+
+// Objects
+let alien = { x: 0, y: 0, vy: 0, rotation: 0 };
+let pipes = [];
+let particles = [];
+let stars = [];
+
+/* --- DOM Elements --- */
+const scoreDisplay = document.getElementById("score-display");
+const bestScoreDisplay = document.getElementById("best-score");
+const overlay = document.getElementById("overlay");
+const overlayTitle = overlay.querySelector("h1");
+const overlaySubText = overlay.querySelector(".sub-text");
+const deathScoreSummary = document.getElementById("death-score-summary"); 
+const startBtn = document.getElementById("startBtn");
+const resetBtn = document.getElementById("resetBtn"); 
+const crashedText = document.getElementById("crashed-text"); 
+const confirmationModal = document.getElementById("confirmation-modal"); 
+const confirmResetBtn = document.getElementById("confirmResetBtn");
+const cancelResetBtn = document.getElementById("cancelResetBtn");
+const pcHint = document.getElementById("pc-hint"); 
+
+
+/* --- PLATFORM CHECK (Used for initial check, but hint logic simplified below) --- */
+const isTouchDevice = () => {
+    return (
+        'ontouchstart' in window ||
+        navigator.maxTouchPoints > 0 ||
+        navigator.msMaxTouchPoints > 0
+    );
+};
+const isDesktop = !isTouchDevice();
+
+/* --- RESIZE HANDLING --- */
+function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    
+    // Only reposition alien on START/DEAD states (it will stay hidden on DEAD but keeps idle position logic)
+    if(gameState === "START" || gameState === "DEAD") {
+        alien.x = canvas.width * 0.2;
+        alien.y = canvas.height / 2;
+    }
+}
+window.addEventListener("resize", resize);
+resize();
+
+
+/* --- HELPER FUNCTIONS FOR HINT (SIMPLIFIED) --- */
+function showPCHint() {
+    // Show the hint whenever we are on the START screen
+    if (gameState === "START") {
+        pcHint.style.display = "block";
+    }
+}
+
+function hidePCHint() {
+    // Hide by setting display to none
+    pcHint.style.display = "none";
+}
+
+
+/* --- INIT --- */
+function initGame() {
+    gameState = "PLAYING";
+    score = 0;
+    frames = 0;
+    gameSpeed = CONFIG.speedBase;
+    pipes = [];
+    particles = [];
+    
+    // Hide hint when game starts
+    hidePCHint();
+
+    // Reset overlay state
+    scoreDisplay.innerText = "0";
+    overlay.style.opacity = "0";
+    overlay.style.pointerEvents = "none";
+    crashedText.style.display = "none"; 
+    deathScoreSummary.style.display = "none"; 
+    resetBtn.style.display = "none"; 
+
+    // Reset Alien
+    alien = {
+        x: canvas.width * 0.2,
+        y: canvas.height / 2,
+        vy: 0,
+        rotation: 0,
+        oscillation: 0 
+    };
+
+    // Pre-populate stars
+    stars = [];
+    for(let i=0; i<60; i++) {
+        stars.push({
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height,
+            size: Math.random() * 2,
+            speed: Math.random() * 0.5 + 0.1
+        });
+    }
+}
+
+/* --- PHYSICS & LOGIC --- */
+function update() {
+    frames++;
+    
+    // 1. Difficulty Ramp
+    // FIXED: Adjusted to 750 for a slightly slower, medium-paced speed increase
+    if (frames % 750 === 0) gameSpeed += 0.2;
+
+    // 2. Alien Physics
+    alien.vy += CONFIG.gravity;
+    alien.y += alien.vy;
+    
+    // Rotation based on velocity (tilt up/down)
+    let targetRot = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, (alien.vy * 0.08)));
+    alien.rotation += (targetRot - alien.rotation) * 0.15; 
+
+    // Floor/Ceiling collision
+    if (alien.y + 15 > canvas.height || alien.y - 15 < 0) {
+        triggerCrash(); // Call crash sequence
+        return;
+    }
+
+    // 3. Pipes Logic
+    // Spawn
+    // FIXED: Use the correct scaling factor (CONFIG.speedBase / gameSpeed) to maintain 
+    // relatively consistent horizontal distance between pipes as speed increases.
+    if (frames % Math.floor(CONFIG.pipeInterval * (CONFIG.speedBase / gameSpeed)) === 0) {
+        spawnPipe();
+    }
+
+    // Move & Collision
+    for (let i = 0; i < pipes.length; i++) {
+        let p = pipes[i];
+        p.x -= gameSpeed;
+
+        // Collision Box (Smaller than visual for fairness)
+        let hitX = alien.x + 10 > p.x && alien.x - 10 < p.x + p.w;
+        let hitY = alien.y - 8 < p.top || alien.y + 8 > p.bottom;
+
+        if (hitX && hitY) {
+            triggerCrash(); // Call crash sequence
+            return;
+        }
+
+        // Score
+        if (!p.passed && p.x + p.w < alien.x) {
+            score++;
+            p.passed = true;
+            scoreDisplay.innerText = score;
+            // Visual pop
+            scoreDisplay.style.transform = "scale(1.2)";
+            setTimeout(() => scoreDisplay.style.transform = "scale(1)", 100);
+        }
+    }
+    // Remove off-screen pipes
+    pipes = pipes.filter(p => p.x + p.w > -50);
+
+    // 4. Particles (Thruster trail)
+    if(frames % 2 === 0) {
+        particles.push({
+            x: alien.x - 15,
+            y: alien.y + (Math.random()*6 - 3),
+            vx: -gameSpeed - Math.random() * 2,
+            vy: (Math.random() - 0.5),
+            life: 1,
+            color: Math.random() > 0.5 ? "#00f0ff" : "#bd00ff",
+            type: 'thruster'
+        });
+    }
+
+    // 5. Update Particles
+    particles.forEach(p => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life -= p.type === 'thruster' ? 0.04 : 0.08; // Explosion particles decay faster
+    });
+    particles = particles.filter(p => p.life > 0);
+}
+
+function spawnPipe() {
+    let currentGap = Math.max(130, CONFIG.pipeGap - (score * 1.5));
+    let minH = 50;
+    let maxH = canvas.height - minH - currentGap;
+    let topHeight = Math.floor(Math.random() * (maxH - minH + 1)) + minH;
+
+    pipes.push({
+        x: canvas.width,
+        y: 0,
+        w: 60, 
+        top: topHeight,
+        bottom: topHeight + currentGap,
+        passed: false
+    });
+}
+
+/**
+ * Initiates the crash sequence: adds explosion particles and sets CRASHING state.
+ */
+function triggerCrash() {
+    if(gameState === "CRASHING" || gameState === "DEAD") return;
+
+    gameState = "CRASHING";
+    
+    // Hide hint immediately on crash
+    hidePCHint();
+
+    // --- Create Explosion Particles ---
+    for(let i = 0; i < 50; i++) {
+        let angle = Math.random() * Math.PI * 2;
+        let speed = Math.random() * 7 + 3;
+        let color = Math.random() > 0.7 
+            ? CONFIG.colors.secondaryExplosion 
+            : CONFIG.colors.explosion;
+
+        particles.push({
+            x: alien.x + (Math.random() * 10 - 5), // Slight scatter
+            y: alien.y + (Math.random() * 10 - 5),
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            life: 1,
+            color: color,
+            type: 'explosion'
+        });
+    }
+
+    // After the animation duration, show the game over screen
+    setTimeout(showGameOverScreen, CONFIG.CRASH_DURATION);
+}
+
+/**
+ * Shows the final game over screen (moves state to DEAD).
+ */
+function showGameOverScreen() {
+    gameState = "DEAD";
+    
+    // Update High Score
+    if (score > highScore) {
+        highScore = score;
+        localStorage.setItem("utopix_high", highScore);
+    }
+    bestScoreDisplay.innerText = "BEST: " + highScore;
+    
+    // Update Overlay
+    crashedText.style.display = "block";
+    overlayTitle.innerText = "SYSTEM FAILURE";
+    overlaySubText.innerText = "AVOID THE CYBER COLUMNS"; 
+    
+    deathScoreSummary.innerHTML = `SCORE: ${score} | BEST: ${highScore}`;
+    deathScoreSummary.style.display = "block";
+    
+    startBtn.innerText = "RETRY";
+    resetBtn.style.display = "block"; 
+
+    overlay.style.opacity = "1";
+    overlay.style.pointerEvents = "auto";
+
+    // Block input for 3 seconds after game over screen appears
+    deathScreenDelay = true;
+    setTimeout(() => {
+        deathScreenDelay = false;
+    }, 3000); 
+    
+    // Hint is not shown on the DEAD screen
+    hidePCHint();
+}
+
+/* --- GAME RESET LOGIC --- */
+function showResetConfirmation() {
+    confirmationModal.style.display = 'flex';
+    confirmationModal.style.pointerEvents = 'auto';
+    hidePCHint();
+}
+
+function hideResetConfirmation() {
+    confirmationModal.style.display = 'none';
+    confirmationModal.style.pointerEvents = 'none';
+    showPCHint(); // Re-show if game state is START
+}
+
+function fullGameReset() {
+    localStorage.removeItem("utopix_high");
+    highScore = 0;
+    
+    bestScoreDisplay.innerText = "BEST: 0";
+    
+    hideResetConfirmation();
+    
+    gameState = "START"; 
+    
+    alien.x = canvas.width * 0.2;
+    alien.y = canvas.height / 2;
+    
+    crashedText.style.display = "none";
+    overlayTitle.innerText = "NEXORA";
+    overlaySubText.innerText = "AVOID THE CYBER COLUMNS";
+    startBtn.innerText = "INITIATE";
+    resetBtn.style.display = "block"; 
+
+    overlay.style.opacity = "1";
+    overlay.style.pointerEvents = "auto";
+    
+    showPCHint();
+}
+
+
+/* --- RENDERING --- */
+function draw() {
+    // 1. Clear & Background Gradient
+    let grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    grad.addColorStop(0, CONFIG.colors.skyTop);
+    grad.addColorStop(1, CONFIG.colors.skyBot);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // 2. Stars
+    ctx.fillStyle = "#ffffff";
+    stars.forEach(s => {
+        // Only move stars when playing or crashing
+        if(gameState === "PLAYING" || gameState === "CRASHING") s.x -= s.speed * (gameSpeed/2);
+        if(s.x < 0) s.x = canvas.width;
+        
+        ctx.globalAlpha = Math.random() * 0.5 + 0.3;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.size, 0, Math.PI*2);
+        ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+
+    // 3. Synthwave Grid (Perspective Floor)
+    drawGrid();
+
+    // 4. Pipes (Only draw when playing or crashing)
+    if(gameState === "PLAYING" || gameState === "CRASHING") {
+        drawPipes();
+    }
+    
+    // 5. Particles (Always draw/update when playing/crashing/dead for lingering effect)
+    particles.forEach(p => {
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = p.life;
+        
+        // Explosion particles are slightly larger/more intense
+        let size = p.type === 'explosion' ? 7 * p.life : 4 * p.life;
+        
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, size, 0, Math.PI*2);
+        ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+
+    // 6. Alien (Do NOT draw when CRASHING or DEAD)
+    if(gameState === "PLAYING" || gameState === "START") {
+        drawAlien();
+    }
+}
+
+function drawGrid() {
+    ctx.save();
+    ctx.strokeStyle = "rgba(189, 0, 255, 0.3)"; 
+    ctx.lineWidth = 1;
+    
+    let horizon = canvas.height * 0.8;
+    // Freeze movement if not playing
+    let gridSpeed = (gameState === "PLAYING" || gameState === "CRASHING") ? (frames * gameSpeed) % 40 : (frames * CONFIG.speedBase) % 40;
+    
+    // Vertical lines 
+    for (let i = 0; i < canvas.width + 100; i+=80) {
+        let x = i - gridSpeed; 
+        ctx.beginPath();
+        ctx.moveTo(x, horizon); 
+        ctx.lineTo(x - (canvas.width/2 - x)*1.5, canvas.height); 
+        ctx.stroke();
+    }
+
+    // Horizontal lines 
+    for (let i = 0; i < canvas.height - horizon; i+=30) {
+        // Simple movement is paused if not playing/crashing
+        let yMovement = (gameState === "PLAYING" || gameState === "CRASHING") ? (frames % 30)*0.5 : 0;
+        let y = horizon + i + yMovement; 
+        if(y > canvas.height) continue;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+    }
+    
+    // Glow at horizon
+    ctx.shadowBlur = 20;
+    ctx.shadowColor = CONFIG.colors.grid;
+    ctx.fillStyle = CONFIG.colors.grid;
+    ctx.fillRect(0, horizon-2, canvas.width, 4);
+    ctx.shadowBlur = 0;
+    
+    ctx.restore();
+}
+
+function drawPipes() {
+    pipes.forEach(p => {
+        // --- Top Pipe ---
+        
+        // Body
+        ctx.fillStyle = CONFIG.colors.pipeFill;
+        ctx.fillRect(p.x, 0, p.w, p.top);
+        
+        // Neon Border
+        ctx.strokeStyle = CONFIG.colors.pipeBorder;
+        ctx.lineWidth = 2;
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = CONFIG.colors.pipeBorder;
+        ctx.strokeRect(p.x, -5, p.w, p.top + 5);
+        
+        // Cap
+        ctx.fillStyle = CONFIG.colors.pipeBorder;
+        ctx.fillRect(p.x - 5, p.top - 20, p.w + 10, 20);
+
+        // --- Bottom Pipe ---
+        
+        // Body
+        ctx.fillStyle = CONFIG.colors.pipeFill;
+        ctx.shadowBlur = 0; // Reset blur for fill
+        ctx.fillRect(p.x, p.bottom, p.w, canvas.height - p.bottom);
+        
+        // Neon Border
+        ctx.shadowBlur = 10;
+        ctx.strokeRect(p.x, p.bottom, p.w, canvas.height - p.bottom + 5);
+        
+        // Cap
+        ctx.fillStyle = CONFIG.colors.pipeBorder;
+        ctx.fillRect(p.x - 5, p.bottom, p.w + 10, 20);
+        
+        ctx.shadowBlur = 0;
+    });
+}
+
+function drawAlien() {
+    ctx.save();
+    ctx.translate(alien.x, alien.y);
+    ctx.rotate(alien.rotation);
+    
+    const bodyY = -2; 
+
+    // 1. Saucer Body (Metal - main disk)
+    ctx.fillStyle = "#2a2a2a";
+    ctx.beginPath();
+    ctx.ellipse(0, bodyY, 24, 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // 2. Central Neon Ring/Glow
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = "#00f0ff";
+    ctx.strokeStyle = "#00f0ff";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(0, bodyY + 1, 18, 7, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.shadowBlur = 0; 
+    
+    // 3. Rim Light (Neon - outer edge)
+    ctx.strokeStyle = "#00f0ff";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.ellipse(0, bodyY, 24, 10, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // 4. Dome (Glass - centered)
+    const domeY = bodyY - 9; 
+    const domeX_Offset = 1; 
+    ctx.fillStyle = "#e0faff";
+    ctx.beginPath();
+    ctx.arc(domeX_Offset, domeY, 14, Math.PI, 0); 
+    ctx.fill();
+
+    // 5. Details (Rotating lights)
+    let blink = Math.floor(frames / 10) % 3;
+    const lightOffset = 18; 
+    const lightY = bodyY; 
+
+    ctx.fillStyle = blink === 0 ? "#ff0055" : "#550022";
+    ctx.beginPath(); ctx.arc(-lightOffset, lightY, 3, 0, Math.PI * 2); ctx.fill(); 
+    
+    ctx.fillStyle = blink === 1 ? "#ff0055" : "#550022";
+    ctx.beginPath(); ctx.arc(0, lightY + 5, 3, 0, Math.PI * 2); ctx.fill(); 
+    
+    ctx.fillStyle = blink === 2 ? "#ff0055" : "#550022";
+    ctx.beginPath(); ctx.arc(lightOffset, lightY, 3, 0, Math.PI * 2); ctx.fill(); 
+
+    ctx.restore();
+}
+
+/* --- LOOP --- */
+function loop() {
+    if(gameState === "PLAYING") {
+        update();
+    } else if (gameState === "CRASHING") {
+        // Only update particles in CRASHING state, the rest is frozen
+        particles.forEach(p => {
+            p.x += p.vx;
+            p.y += p.vy;
+            p.life -= p.type === 'thruster' ? 0.04 : 0.08; 
+        });
+        particles = particles.filter(p => p.life > 0);
+
+    } else if (gameState === "START" || gameState === "DEAD") {
+        // Idle animation for start/dead screen
+        alien.oscillation = (alien.oscillation || 0) + 0.05;
+        alien.y = (canvas.height/2) + Math.sin(alien.oscillation) * 10;
+        
+        // Still update particles on DEAD screen in case some are lingering
+         particles.forEach(p => {
+            p.x += p.vx;
+            p.y += p.vy;
+            p.life -= p.type === 'thruster' ? 0.04 : 0.08; 
+        });
+        particles = particles.filter(p => p.life > 0);
+    }
+    
+    draw(); // Draw everything
+    requestAnimationFrame(loop);
+}
+
+/* --- INPUT --- */
+function jump(e) {
+    // 1. Block if Confirmation Modal is visible
+    if (confirmationModal.style.display === 'flex') {
+        if(e) e.preventDefault();
+        return;
+    }
+
+    // Allow Spacebar/Click/Touch to start/jump, but filter for specific keypress
+    if(e && e.type === "keydown" && e.code !== "Space") return;
+    if(e) e.preventDefault(); 
+
+    const isStartButton = e && e.currentTarget === startBtn;
+    
+    // 2. Block input if DEAD, delay is active, AND source is NOT the Start Button.
+    if (gameState === "DEAD" && deathScreenDelay && !isStartButton) {
+        return;
+    }
+    
+    // Also block input if CRASHING
+    if(gameState === "CRASHING") return; 
+
+    if(gameState === "START") {
+        // START state: Initiate Game
+        if(isStartButton || (e && e.type !== 'click' && e.currentTarget !== resetBtn)) {
+            initGame();
+        }
+    } else if (gameState === "DEAD") {
+        // DEAD state: Transition back to START menu screen
+        // This is triggered by clicking 'RETRY' button (isStartButton is true) or pressing Space/Touch.
+        if(isStartButton || (e && e.type !== 'click' && e.currentTarget !== resetBtn)) {
+            // Reset state variables to match START screen appearance
+            gameState = "START";
+            
+            // Update overlay elements to show main title/initial state
+            crashedText.style.display = "none";
+            overlayTitle.innerText = "NEXORA";
+            overlaySubText.innerText = "AVOID THE CYBER COLUMNS";
+            deathScoreSummary.style.display = "none";
+            startBtn.innerText = "INITIATE";
+            resetBtn.style.display = "block"; 
+            
+            // Show hint on transition to start screen
+            showPCHint();
+        }
+
+    } else if (gameState === "PLAYING") {
+        // PLAYING state: Normal Jump action
+        alien.vy = CONFIG.jumpForce;
+        // Add a burst particle
+        for(let i=0; i<5; i++){
+            particles.push({
+                x: alien.x, y: alien.y + 10,
+                vx: (Math.random()-0.5)*5, vy: Math.random()*5,
+                life: 1, color: "#fff",
+                type: 'thruster'
+            });
+        }
+    }
+}
+
+// Event Listeners
+window.addEventListener("keydown", jump);
+window.addEventListener("touchstart", jump);
+startBtn.addEventListener("click", jump);
+
+// Full Reset Button Listeners
+resetBtn.addEventListener("click", showResetConfirmation);
+confirmResetBtn.addEventListener("click", fullGameReset);
+cancelResetBtn.addEventListener("click", hideResetConfirmation);
+
+// Check LocalStorage and set initial hint visibility
+if(localStorage.getItem("utopix_high")) {
+    highScore = localStorage.getItem("utopix_high");
+    bestScoreDisplay.innerText = "BEST: " + highScore;
+} 
+
+// Initial setup
+resize();
+gameState = "START";
+
+// CRITICAL: Call showPCHint right after initial setup to ensure visibility on load
+showPCHint(); 
+loop();
+
+</script>
+</body>
+</html>
