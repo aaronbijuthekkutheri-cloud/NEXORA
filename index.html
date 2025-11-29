@@ -295,10 +295,10 @@
 
 <script>
 /** * NEXORA
- * FIXED: Removed strict isDesktop check for hint visibility and increased Z-index.
- * UPDATED: Renamed game title to NEXORA.
- * UPDATED: Changed CRASHED text style to match CONFIRM RESET.
- * FIXED: Adjusted pipeInterval and speed ramp for fairer horizontal spacing and medium difficulty.
+ * FIXED: Mobile scaling and input issues.
+ * 1. UFO size increased.
+ * 2. Pipe width increased.
+ * 3. Touch input uses a less aggressive jump force for finer control.
  */
 
 const canvas = document.getElementById("game");
@@ -308,10 +308,15 @@ const ctx = canvas.getContext("2d", { alpha: false });
 const CONFIG = {
     gravity: 0.15,      
     jumpForce: -4.5,    
+    // NEW: Softer jump force for mobile/touch devices
+    jumpForceMobile: -3.5, 
     speedBase: 3.5,     
     pipeGap: 190,       
-    // FIXED: Increased base interval from 180 to 200 for more horizontal room at start
     pipeInterval: 200,  
+    // NEW: Base size scaling factor for the alien graphic.
+    alienScale: 1.25, 
+    // NEW: Pipe width for easier targeting/larger obstacle.
+    pipeWidth: 80, 
     colors: {
         skyTop: "#050011",
         skyBot: "#180036",
@@ -328,7 +333,6 @@ const CONFIG = {
 let gameState = "START"; // Possible states: "START", "PLAYING", "CRASHING", "DEAD"
 let frames = 0;
 let score = 0;
-// Note: Local storage key remains 'utopix_high' for persistence across renames, but feel free to change it.
 let highScore = localStorage.getItem("utopix_high") || 0; 
 let gameSpeed = CONFIG.speedBase;
 let deathScreenDelay = false; 
@@ -355,7 +359,7 @@ const cancelResetBtn = document.getElementById("cancelResetBtn");
 const pcHint = document.getElementById("pc-hint"); 
 
 
-/* --- PLATFORM CHECK (Used for initial check, but hint logic simplified below) --- */
+/* --- PLATFORM CHECK --- */
 const isTouchDevice = () => {
     return (
         'ontouchstart' in window ||
@@ -370,7 +374,7 @@ function resize() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
     
-    // Only reposition alien on START/DEAD states (it will stay hidden on DEAD but keeps idle position logic)
+    // Only reposition alien on START/DEAD states
     if(gameState === "START" || gameState === "DEAD") {
         alien.x = canvas.width * 0.2;
         alien.y = canvas.height / 2;
@@ -380,16 +384,14 @@ window.addEventListener("resize", resize);
 resize();
 
 
-/* --- HELPER FUNCTIONS FOR HINT (SIMPLIFIED) --- */
+/* --- HELPER FUNCTIONS FOR HINT --- */
 function showPCHint() {
-    // Show the hint whenever we are on the START screen
-    if (gameState === "START") {
+    if (gameState === "START" && isDesktop) { // Only show PC hint on desktop
         pcHint.style.display = "block";
     }
 }
 
 function hidePCHint() {
-    // Hide by setting display to none
     pcHint.style.display = "none";
 }
 
@@ -403,7 +405,6 @@ function initGame() {
     pipes = [];
     particles = [];
     
-    // Hide hint when game starts
     hidePCHint();
 
     // Reset overlay state
@@ -440,7 +441,6 @@ function update() {
     frames++;
     
     // 1. Difficulty Ramp
-    // FIXED: Adjusted to 750 for a slightly slower, medium-paced speed increase
     if (frames % 750 === 0) gameSpeed += 0.2;
 
     // 2. Alien Physics
@@ -451,16 +451,17 @@ function update() {
     let targetRot = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, (alien.vy * 0.08)));
     alien.rotation += (targetRot - alien.rotation) * 0.15; 
 
+    // Calculate effective alien radius for collision
+    const alienRadius = 15 * CONFIG.alienScale;
+
     // Floor/Ceiling collision
-    if (alien.y + 15 > canvas.height || alien.y - 15 < 0) {
-        triggerCrash(); // Call crash sequence
+    if (alien.y + alienRadius > canvas.height || alien.y - alienRadius < 0) {
+        triggerCrash(); 
         return;
     }
 
     // 3. Pipes Logic
     // Spawn
-    // FIXED: Use the correct scaling factor (CONFIG.speedBase / gameSpeed) to maintain 
-    // relatively consistent horizontal distance between pipes as speed increases.
     if (frames % Math.floor(CONFIG.pipeInterval * (CONFIG.speedBase / gameSpeed)) === 0) {
         spawnPipe();
     }
@@ -470,12 +471,12 @@ function update() {
         let p = pipes[i];
         p.x -= gameSpeed;
 
-        // Collision Box (Smaller than visual for fairness)
-        let hitX = alien.x + 10 > p.x && alien.x - 10 < p.x + p.w;
-        let hitY = alien.y - 8 < p.top || alien.y + 8 > p.bottom;
+        // Collision Box (Use slightly reduced size for collision tolerance)
+        let hitX = alien.x + alienRadius*0.7 > p.x && alien.x - alienRadius*0.7 < p.x + p.w;
+        let hitY = alien.y - alienRadius*0.7 < p.top || alien.y + alienRadius*0.7 > p.bottom;
 
         if (hitX && hitY) {
-            triggerCrash(); // Call crash sequence
+            triggerCrash(); 
             return;
         }
 
@@ -490,12 +491,12 @@ function update() {
         }
     }
     // Remove off-screen pipes
-    pipes = pipes.filter(p => p.x + p.w > -50);
-
+    pipes = pipes.filter(p => p.x + CONFIG.pipeWidth > -50);
+    
     // 4. Particles (Thruster trail)
     if(frames % 2 === 0) {
         particles.push({
-            x: alien.x - 15,
+            x: alien.x - (15 * CONFIG.alienScale),
             y: alien.y + (Math.random()*6 - 3),
             vx: -gameSpeed - Math.random() * 2,
             vy: (Math.random() - 0.5),
@@ -509,7 +510,7 @@ function update() {
     particles.forEach(p => {
         p.x += p.vx;
         p.y += p.vy;
-        p.life -= p.type === 'thruster' ? 0.04 : 0.08; // Explosion particles decay faster
+        p.life -= p.type === 'thruster' ? 0.04 : 0.08; 
     });
     particles = particles.filter(p => p.life > 0);
 }
@@ -523,7 +524,8 @@ function spawnPipe() {
     pipes.push({
         x: canvas.width,
         y: 0,
-        w: 60, 
+        // FIXED: Use CONFIG.pipeWidth (80)
+        w: CONFIG.pipeWidth, 
         top: topHeight,
         bottom: topHeight + currentGap,
         passed: false
@@ -538,7 +540,6 @@ function triggerCrash() {
 
     gameState = "CRASHING";
     
-    // Hide hint immediately on crash
     hidePCHint();
 
     // --- Create Explosion Particles ---
@@ -550,7 +551,7 @@ function triggerCrash() {
             : CONFIG.colors.explosion;
 
         particles.push({
-            x: alien.x + (Math.random() * 10 - 5), // Slight scatter
+            x: alien.x + (Math.random() * 10 - 5), 
             y: alien.y + (Math.random() * 10 - 5),
             vx: Math.cos(angle) * speed,
             vy: Math.sin(angle) * speed,
@@ -597,7 +598,6 @@ function showGameOverScreen() {
         deathScreenDelay = false;
     }, 3000); 
     
-    // Hint is not shown on the DEAD screen
     hidePCHint();
 }
 
@@ -676,8 +676,8 @@ function draw() {
         ctx.fillStyle = p.color;
         ctx.globalAlpha = p.life;
         
-        // Explosion particles are slightly larger/more intense
-        let size = p.type === 'explosion' ? 7 * p.life : 4 * p.life;
+        // Scale particle size based on alien scale
+        let size = p.type === 'explosion' ? (7 * CONFIG.alienScale) * p.life : (4 * CONFIG.alienScale) * p.life;
         
         ctx.beginPath();
         ctx.arc(p.x, p.y, size, 0, Math.PI*2);
@@ -774,11 +774,16 @@ function drawAlien() {
     ctx.translate(alien.x, alien.y);
     ctx.rotate(alien.rotation);
     
-    const bodyY = -2; 
+    // Apply the scaling factor
+    const scale = CONFIG.alienScale;
+    ctx.scale(scale, scale);
 
+    const bodyY = -2 / scale; // Adjust y position by inverse scale if needed, but -2 is fine
+    
     // 1. Saucer Body (Metal - main disk)
     ctx.fillStyle = "#2a2a2a";
     ctx.beginPath();
+    // Radii of 24 and 10 were original, now they are effectively 24*scale and 10*scale
     ctx.ellipse(0, bodyY, 24, 10, 0, 0, Math.PI * 2);
     ctx.fill();
     
@@ -786,7 +791,7 @@ function drawAlien() {
     ctx.shadowBlur = 15;
     ctx.shadowColor = "#00f0ff";
     ctx.strokeStyle = "#00f0ff";
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2 / scale; // Scale line width down so it looks consistent
     ctx.beginPath();
     ctx.ellipse(0, bodyY + 1, 18, 7, 0, 0, Math.PI * 2);
     ctx.stroke();
@@ -794,7 +799,7 @@ function drawAlien() {
     
     // 3. Rim Light (Neon - outer edge)
     ctx.strokeStyle = "#00f0ff";
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 3 / scale;
     ctx.beginPath();
     ctx.ellipse(0, bodyY, 24, 10, 0, 0, Math.PI * 2);
     ctx.stroke();
@@ -811,15 +816,16 @@ function drawAlien() {
     let blink = Math.floor(frames / 10) % 3;
     const lightOffset = 18; 
     const lightY = bodyY; 
+    const lightRadius = 3;
 
     ctx.fillStyle = blink === 0 ? "#ff0055" : "#550022";
-    ctx.beginPath(); ctx.arc(-lightOffset, lightY, 3, 0, Math.PI * 2); ctx.fill(); 
+    ctx.beginPath(); ctx.arc(-lightOffset, lightY, lightRadius, 0, Math.PI * 2); ctx.fill(); 
     
     ctx.fillStyle = blink === 1 ? "#ff0055" : "#550022";
-    ctx.beginPath(); ctx.arc(0, lightY + 5, 3, 0, Math.PI * 2); ctx.fill(); 
+    ctx.beginPath(); ctx.arc(0, lightY + 5, lightRadius, 0, Math.PI * 2); ctx.fill(); 
     
     ctx.fillStyle = blink === 2 ? "#ff0055" : "#550022";
-    ctx.beginPath(); ctx.arc(lightOffset, lightY, 3, 0, Math.PI * 2); ctx.fill(); 
+    ctx.beginPath(); ctx.arc(lightOffset, lightY, lightRadius, 0, Math.PI * 2); ctx.fill(); 
 
     ctx.restore();
 }
@@ -863,6 +869,9 @@ function jump(e) {
         return;
     }
 
+    // Determine if the event is a touch event
+    const isTouch = e && e.type === "touchstart";
+
     // Allow Spacebar/Click/Touch to start/jump, but filter for specific keypress
     if(e && e.type === "keydown" && e.code !== "Space") return;
     if(e) e.preventDefault(); 
@@ -884,12 +893,9 @@ function jump(e) {
         }
     } else if (gameState === "DEAD") {
         // DEAD state: Transition back to START menu screen
-        // This is triggered by clicking 'RETRY' button (isStartButton is true) or pressing Space/Touch.
         if(isStartButton || (e && e.type !== 'click' && e.currentTarget !== resetBtn)) {
-            // Reset state variables to match START screen appearance
             gameState = "START";
             
-            // Update overlay elements to show main title/initial state
             crashedText.style.display = "none";
             overlayTitle.innerText = "NEXORA";
             overlaySubText.innerText = "AVOID THE CYBER COLUMNS";
@@ -897,13 +903,14 @@ function jump(e) {
             startBtn.innerText = "INITIATE";
             resetBtn.style.display = "block"; 
             
-            // Show hint on transition to start screen
             showPCHint();
         }
 
     } else if (gameState === "PLAYING") {
         // PLAYING state: Normal Jump action
-        alien.vy = CONFIG.jumpForce;
+        // FIXED: Use softer jump force for touch devices, standard for keyboard/PC
+        alien.vy = isTouch ? CONFIG.jumpForceMobile : CONFIG.jumpForce;
+        
         // Add a burst particle
         for(let i=0; i<5; i++){
             particles.push({
@@ -918,7 +925,24 @@ function jump(e) {
 
 // Event Listeners
 window.addEventListener("keydown", jump);
-window.addEventListener("touchstart", jump);
+// FIXED: Touchevents are handled below.
+// window.addEventListener("touchstart", jump); 
+
+// Added explicit listener for touch devices on the entire canvas/window area for jump
+if (isTouchDevice()) {
+    window.addEventListener("touchstart", jump, { passive: false });
+} else {
+    // For desktop, listen for clicks/keys that are not on the buttons
+    window.addEventListener("click", (e) => {
+        // Check if the click is on the canvas area or body, but not on a button
+        if (gameState === "PLAYING" || gameState === "START") {
+            if (e.target.tagName !== 'BUTTON' && e.target.id !== 'confirmResetBtn' && e.target.id !== 'cancelResetBtn') {
+                jump(e);
+            }
+        }
+    });
+}
+
 startBtn.addEventListener("click", jump);
 
 // Full Reset Button Listeners
@@ -936,7 +960,6 @@ if(localStorage.getItem("utopix_high")) {
 resize();
 gameState = "START";
 
-// CRITICAL: Call showPCHint right after initial setup to ensure visibility on load
 showPCHint(); 
 loop();
 
