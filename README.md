@@ -1,4 +1,3 @@
-NEXORA 🚀
 NEXORA is a neon-soaked arcade game where you pilot a UFO through a field of cyber columns. Dodge obstacles, rack up points, and challenge your high score in a retro-futuristic synthwave world.
 
 Features: 
